@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Game Station</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* CSS */
+        body {
+            margin: 0;
+            background: #000;
+            font-family: 'Courier New', monospace;
+            color: #0f0;
+            overflow: hidden;
+        }
+
+        .crt {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .crt::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(0, 0, 0, 0.1) 50%, rgba(0, 0, 0, 0.2) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        .title-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            animation: flicker 0.15s infinite;
+        }
+
+        .retro-title {
+            font-size: 2.5rem;
+            text-shadow: 0 0 10px #0f0;
+            margin-bottom: 2rem;
+            letter-spacing: 4px;
+        }
+
+        .menu {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .menu-item {
+            padding: 1rem 2rem;
+            border: 2px solid #0f0;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .menu-item:hover {
+            background: #0f0;
+            color: #000;
+        }
+
+        .game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+        }
+
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            cursor: pointer;
+            padding: 10px;
+            border: 2px solid #0f0;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.9; }
+            50% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+
+        /* Game-specific styles */
+        #snake-game {
+            border: 2px solid #0f0;
+        }
+
+        .game-canvas {
+            margin: 20px auto;
+            display: block;
+        }
+
+        .hangman-container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .guess-container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .racing-container {
+            position: relative;
+            height: 500px;
+            width: 400px;
+            margin: 0 auto;
+            overflow: hidden;
+            border: 2px solid #0f0;
+        }
+
+        .player-car {
+            position: absolute;
+            width: 40px;
+            height: 60px;
+            background: #0f0;
+            bottom: 20px;
+        }
+
+        .obstacle {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: #f00;
+        }
+    </style>
+</head>
+<body>
+    <div class="crt">
+        <div class="title-screen">
+            <h1 class="retro-title">RETRO GAME STATION</h1>
+            <div class="menu">
+                <div class="menu-item" data-game="snake">SNAKE</div>
+                <div class="menu-item" data-game="hangman">HANGMAN</div>
+                <div class="menu-item" data-game="guess">GUESS NUMBER</div>
+                <div class="menu-item" data-game="car">CAR RACING</div>
+                <div class="menu-item" data-game="faceBattle">FACE BATTLE</div>
+            </div>
+        </div>
+
+        <div class="game-container" id="game-container"></div>
+    </div>
+
+    <script>
+        // JavaScript
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuItems = document.querySelectorAll('.menu-item');
+            const gameContainer = document.getElementById('game-container');
+            const titleScreen = document.querySelector('.title-screen');
+
+            menuItems.forEach(item => {
+                item.addEventListener('click', () => {
+                    titleScreen.style.display = 'none';
+                    gameContainer.style.display = 'block';
+                    loadGame(item.dataset.game);
+                });
+            });
+
+            function loadGame(gameName) {
+                gameContainer.innerHTML = `<div class="back-button" onclick="location.reload()">← BACK</div>`;
+                
+                switch(gameName) {
+                    case 'snake':
+                        initSnake();
+                        break;
+                    case 'hangman':
+                        initHangman();
+                        break;
+                    case 'guess':
+                        initGuessNumber();
+                        break;
+                    case 'car':
+                        initCarRacing();
+                        break;
+                }
+            }
+
+            // Snake Game Implementation
+            function initSnake() {
+                gameContainer.innerHTML += `
+                    <canvas id="snake-game" class="game-canvas" width="400" height="400"></canvas>
+                    <div style="text-align: center; margin-top: 20px;">Score: <span id="score">0</span></div>
+                `;
+
+                const canvas = document.getElementById('snake-game');
+                const ctx = canvas.getContext('2d');
+                const gridSize = 20;
+                let snake = [{x: 200, y: 200}];
+                let food = {x: 0, y: 0};
+                let dx = gridSize;
+                let dy = 0;
+                let score = 0;
+                let gameLoop;
+
+                function generateFood() {
+                    food.x = Math.floor(Math.random() * (canvas.width/gridSize)) * gridSize;
+                    food.y = Math.floor(Math.random() * (canvas.height/gridSize)) * gridSize;
+                }
+
+                function draw() {
+                    // Clear canvas
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    // Draw snake
+                    ctx.fillStyle = '#0f0';
+                    snake.forEach(segment => {
+                        ctx.fillRect(segment.x, segment.y, gridSize-1, gridSize-1);
+                    });
+
+                    // Draw food
+                    ctx.fillStyle = '#f00';
+                    ctx.fillRect(food.x, food.y, gridSize-1, gridSize-1);
+
+                    // Move snake
+                    const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                    snake.unshift(head);
+
+                    // Check collision with food
+                    if (head.x === food.x && head.y === food.y) {
+                        score += 10;
+                        document.getElementById('score').textContent = score;
+                        generateFood();
+                    } else {
+                        snake.pop();
+                    }
+
+                    // Check collision with walls
+                    if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+                        gameOver();
+                    }
+
+                    // Check self-collision
+                    for (let i = 1; i < snake.length; i++) {
+                        if (head.x === snake[i].x && head.y === snake[i].y) {
+                            gameOver();
+                        }
+                    }
+                }
+
+                function gameOver() {
+                    clearInterval(gameLoop);
+                    alert(`Game Over! Score: ${score}`);
+                    location.reload();
+                }
+
+                document.addEventListener('keydown', (e) => {
+                    switch(e.key) {
+                        case 'ArrowUp':
+                            if (dy === 0) { dx = 0; dy = -gridSize; }
+                            break;
+                        case 'ArrowDown':
+                            if (dy === 0) { dx = 0; dy = gridSize; }
+                            break;
+                        case 'ArrowLeft':
+                            if (dx === 0) { dx = -gridSize; dy = 0; }
+                            break;
+                        case 'ArrowRight':
+                            if (dx === 0) { dx = gridSize; dy = 0; }
+                            break;
+                    }
+                });
+
+                generateFood();
+                gameLoop = setInterval(draw, 100);
+            }
+
+            // Hangman Game Implementation
+            function initHangman() {
+                const words = ['PYTHON', 'JAVASCRIPT', 'COMPUTER', 'PROGRAMMING', 'DEVELOPER'];
+                const selectedWord = words[Math.floor(Math.random() * words.length)];
+                let guessedLetters = [];
+                let mistakes = 0;
+
+                gameContainer.innerHTML += `
+                    <div class="hangman-container">
+                        <h2>HANGMAN</h2>
+                        <div style="font-size: 24px; letter-spacing: 10px; margin: 20px 0">
+                            ${selectedWord.split('').map(letter => 
+                                guessedLetters.includes(letter) ? letter : '_'
+                            ).join(' ')}
+                        </div>
+                        <p>Wrong guesses: ${mistakes}/6</p>
+                        <input type="text" id="letter-input" maxlength="1" style="background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px;">
+                        <button onclick="guessLetter()" style="background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px;">Guess</button>
+                    </div>
+                `;
+
+                window.guessLetter = function() {
+                    const input = document.getElementById('letter-input');
+                    const letter = input.value.toUpperCase();
+                    input.value = '';
+
+                    if (!letter.match(/[A-Z]/)) return;
+
+                    if (!guessedLetters.includes(letter)) {
+                        guessedLetters.push(letter);
+                        
+                        if (!selectedWord.includes(letter)) {
+                            mistakes++;
+                        }
+
+                        // Update display
+                        const wordDisplay = selectedWord.split('').map(letter => 
+                            guessedLetters.includes(letter) ? letter : '_'
+                        ).join(' ');
+                        
+                        document.querySelector('.hangman-container div').textContent = wordDisplay;
+                        document.querySelector('.hangman-container p').textContent = `Wrong guesses: ${mistakes}/6`;
+
+                        // Check win/lose
+                        if (wordDisplay === selectedWord.split('').join(' ')) {
+                            alert('You win!');
+                            location.reload();
+                        } else if (mistakes >= 6) {
+                            alert(`Game Over! The word was: ${selectedWord}`);
+                            location.reload();
+                        }
+                    }
+                };
+            }
+
+            // Guess Number Game Implementation
+            function initGuessNumber() {
+                const targetNumber = Math.floor(Math.random() * 100) + 1;
+                let attempts = 0;
+
+                gameContainer.innerHTML += `
+                    <div class="guess-container">
+                        <h2>GUESS THE NUMBER (1-100)</h2>
+                        <input type="number" id="guess-input" style="background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px;">
+                        <button onclick="checkGuess()" style="background: #000; color: #0f0; border: 1px solid #0f0; padding: 5px;">Submit</button>
+                        <p id="result" style="margin-top: 20px;"></p>
+                    </div>
+                `;
+
+                window.checkGuess = function() {
+                    const guess = parseInt(document.getElementById('guess-input').value);
+                    attempts++;
+                    let message = '';
+
+                    if (guess === targetNumber) {
+                        message = `Correct! You won in ${attempts} attempts!`;
+                        alert(message);
+                        location.reload();
+                    } else if (guess < targetNumber) {
+                        message = "Try higher!";
+                    } else {
+                        message = "Try lower!";
+                    }
+
+                    document.getElementById('result').textContent = message;
+                    document.getElementById('guess-input').value = '';
+                };
+            }
+
+            // Car Racing Game Implementation
+            function initCarRacing() {
+                gameContainer.innerHTML += `
+                    <div class="racing-container">
+                        <div class="player-car" id="player-car"></div>
+                        <div style="text-align: center; margin-top: 20px;">Score: <span id="score">0</span></div>
+                    </div>
+                `;
+
+                const player = document.getElementById('player-car');
+                const container = document.querySelector('.racing-container');
+                let position = 180;
+                let obstacles = [];
+                let score = 0;
+                let gameLoop;
+
+                function createObstacle() {
+                    const obstacle = document.createElement('div');
+                    obstacle.className = 'obstacle';
+                    obstacle.style.left = Math.random() * 360 + 'px';
+                    obstacle.style.top = '-40px';
+                    container.appendChild(obstacle);
+                    obstacles.push(obstacle);
+                }
+
+                function moveObstacles() {
+                    obstacles.forEach(obstacle => {
+                        const top = parseInt(obstacle.style.top) + 5;
+                        obstacle.style.top = top + 'px';
+
+                        if (top > 500) {
+                            obstacle.remove();
+                            obstacles = obstacles.filter(o => o !== obstacle);
+                            score += 10;
+                            document.getElementById('score').textContent = score;
+                        }
+
+                        // Collision detection
+                        const playerRect = player.getBoundingClientRect();
+                        const obstacleRect = obstacle.getBoundingClientRect();
+
+                        if (
+                            playerRect.left < obstacleRect.right &&
+                            playerRect.right > obstacleRect.left &&
+                            playerRect.top < obstacleRect.bottom &&
+                            playerRect.bottom > obstacleRect.top
+                        ) {
+                            gameOver();
+                        }
+                    });
+                }
+
+                function gameOver() {
+                    clearInterval(gameLoop);
+                    alert(`Game Over! Score: ${score}`);
+                    location.reload();
+                }
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowLeft' && position > 0) {
+                        position -= 20;
+                    } else if (e.key === 'ArrowRight' && position < 360) {
+                        position += 20;
+                    }
+                    player.style.left = position + 'px';
+                });
+
+                // Game loop
+                gameLoop = setInterval(() => {
+                    if (Math.random() < 0.05) {
+                        createObstacle();
+                    }
+                    moveObstacles();
+                }, 50);
+            }
+            
+        });
+        
+        
+        
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
